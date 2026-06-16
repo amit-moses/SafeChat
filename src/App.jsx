@@ -135,9 +135,14 @@ export default function App() {
     ;(async () => {
       try {
         ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/'
+        // model.onnx is in Git LFS — Vercel doesn't pull LFS, so in production
+        // we fetch it directly from GitHub's LFS media CDN.
+        const modelUrl = import.meta.env.PROD
+          ? 'https://media.githubusercontent.com/media/amit-moses/SafeChat/master/public/model/model.onnx'
+          : '/model/model.onnx'
         const res = await fetch('/model/vocab.txt')
         vocab.current = buildVocab(await res.text())
-        sess.current  = await ort.InferenceSession.create('/model/model.onnx', {
+        sess.current  = await ort.InferenceSession.create(modelUrl, {
           executionProviders: ['wasm'],
         })
         setReady(true)
