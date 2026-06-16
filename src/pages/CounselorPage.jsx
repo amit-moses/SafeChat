@@ -43,14 +43,19 @@ export default function CounselorPage() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:'smooth' }) }, [messages, loading])
 
-  // Sage opens the conversation
+  // Sage opens the conversation — show the blocked message as the first user bubble
   useEffect(() => {
     if (!blockedMsg) return
+    const firstUserMsg = { role:'user', text: blockedMsg }
+    setMessages([firstUserMsg])
     setLoading(true)
-    callGemini([], blockedMsg).then(text => {
-      setMessages([{ role:'model', text }])
-      setLoading(false)
-    })
+    callGemini([firstUserMsg], blockedMsg)
+      .then(text => setMessages([firstUserMsg, { role:'model', text }]))
+      .catch(e => {
+        console.error('[Counselor] init error:', e.message)
+        setMessages([firstUserMsg, { role:'model', text: `⚠️ ${e.message}` }])
+      })
+      .finally(() => setLoading(false))
   }, [blockedMsg])
 
   async function callGemini(history, blockedMessage) {
@@ -59,13 +64,12 @@ export default function CounselorPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         systemPrompt: SYSTEM_PROMPT(blockedMessage || blockedMsg),
-        messages: history.length
-          ? history
-          : [{ role:'user', text:'Please begin the counseling session.' }],
+        messages: history.length ? history : [{ role:'user', text: blockedMessage }],
       }),
     })
     const data = await res.json()
-    if (data.error) throw new Error(data.error)
+    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`)
+    if (!data.text) throw new Error('Empty response from Gemini')
     return data.text
   }
 
@@ -79,16 +83,17 @@ export default function CounselorPage() {
       const reply = await callGemini(newHistory, blockedMsg)
       setMessages(h => [...h, { role:'model', text: reply }])
       setCanReturn(true) // show return button after first exchange
-    } catch {
-      setMessages(h => [...h, { role:'model', text: "I'm here to listen. Please tell me more." }])
+    } catch(e) {
+      console.error('[Counselor] send error:', e.message)
+      setMessages(h => [...h, { role:'model', text: `⚠️ Error: ${e.message}` }])
       setCanReturn(true)
     } finally { setLoading(false) }
   }
 
   return (
-    <div style={{ minHeight:'100vh', background:'#f0fdf9', display:'flex', justifyContent:'center', fontFamily:"'Segoe UI',system-ui,sans-serif" }}>
+    <div style={{ height:'100dvh', background:'#f0fdf9', display:'flex', justifyContent:'center', fontFamily:"'Segoe UI',system-ui,sans-serif", overflow:'hidden' }}>
       <style>{SAGE_CSS}</style>
-      <div style={{ width:'100%', maxWidth:480, display:'flex', flexDirection:'column', minHeight:'100vh', boxShadow:'0 0 40px rgba(0,0,0,.1)' }}>
+      <div style={{ width:'100%', maxWidth:480, display:'flex', flexDirection:'column', height:'100%', boxShadow:'0 0 40px rgba(0,0,0,.1)', overflow:'hidden' }}>
 
         {/* Header */}
         <div style={{ background:'linear-gradient(135deg,#0d9488,#0891b2)', padding:'14px 16px', display:'flex', alignItems:'center', gap:12, flexShrink:0 }}>
@@ -160,9 +165,9 @@ export default function CounselorPage() {
         )}
 
         {/* Input */}
-        <div style={{ padding:'10px 12px 16px', background:'#f0fdf9', borderTop:'1px solid #ccfbf1', flexShrink:0 }}>
+        <div style={{ padding:'10px 12px 10px', paddingBottom:'max(10px, env(safe-area-inset-bottom))', background:'#f0fdf9', borderTop:'1px solid #ccfbf1', flexShrink:0 }}>
           <div style={{ display:'flex', alignItems:'center', background:'white', borderRadius:999, padding:'6px 6px 6px 18px', boxShadow:'0 1px 4px rgba(0,0,0,.08)', border:'1px solid #99f6e4' }}>
-            <input style={{ flex:1, border:'none', outline:'none', fontSize:'0.95rem', background:'transparent', color:'#111', padding:'6px 0', fontFamily:'inherit' }}
+            <input style={{ flex:1, border:'none', outline:'none', fontSize:'1rem', background:'transparent', color:'#111', padding:'6px 0', fontFamily:'inherit' }}
               dir="auto"
               placeholder="Share how you're feeling…"
               value={draft}

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext.jsx'
 
 const C = {
-  page:   { minHeight:'100vh', background:'linear-gradient(160deg,#4540c8,#3730a3)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Segoe UI',system-ui,sans-serif", padding:16 },
+  page:   { minHeight:'100dvh', background:'linear-gradient(160deg,#4540c8,#3730a3)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Segoe UI',system-ui,sans-serif", padding:16 },
   card:   { background:'white', borderRadius:20, padding:'40px 36px', width:'100%', maxWidth:400, boxShadow:'0 20px 60px rgba(0,0,0,.25)' },
   logo:   { display:'flex', alignItems:'center', gap:10, justifyContent:'center', marginBottom:28 },
   title:  { fontSize:'1.5rem', fontWeight:800, color:'#1e1b4b', margin:0 },
@@ -72,10 +72,8 @@ export default function LoginPage() {
       <div style={C.card}>
         {/* Logo */}
         <div style={C.logo}>
-          <svg viewBox="0 0 24 24" width={32} height={32} fill="#4540c8">
-            <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
-          </svg>
-          <span style={C.title}>SafeChat</span>
+          <img src="/safechat.svg" alt="logo" width={32} height={32} />
+          <span style={C.title}>AmitMagen SafeChat</span>
         </div>
 
         {/* Tabs (not shown on complete-profile screen) */}

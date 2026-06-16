@@ -54,11 +54,15 @@ export default function ChatPage() {
     return onSnapshot(q, snap => {
       const msgs = snap.docs.map(d => ({ id:d.id, ...d.data() }))
       setMessages(msgs)
-      // mark all as read
+      // mark all messages as read
       msgs.forEach(msg => {
         if (!msg.readBy?.includes(user.uid))
           updateDoc(doc(db, 'chats', chatId, 'messages', msg.id), { readBy: arrayUnion(user.uid) }).catch(()=>{})
       })
+      // mark lastMessage as read in the chat doc
+      updateDoc(doc(db, 'chats', chatId), {
+        'lastMessage.readBy': arrayUnion(user.uid)
+      }).catch(()=>{})
     })
   }, [chatId, user.uid])
 
@@ -96,9 +100,7 @@ export default function ChatPage() {
   function chatSubtitle() {
     if (chat?.type === 'group') return `${chat.members.length} members`
     if (!partnerInfo) return ''
-    const onlineStr = partnerInfo.isOnline ? '🟢 Online' : '⚫ Offline'
-    const blocked = partnerInfo.blockedCount > 0 ? `  ·  ⚠️ ${partnerInfo.blockedCount} blocked` : ''
-    return onlineStr + blocked
+    return partnerInfo.isOnline ? '🟢 Online' : '⚫ Offline'
   }
 
   async function clearTypingStatus() {
@@ -140,7 +142,7 @@ export default function ChatPage() {
           timestamp: serverTimestamp(), readBy: [user.uid], reactions: {},
         })
         await updateDoc(doc(db, 'chats', chatId), {
-          lastMessage: { text, senderId: user.uid, senderName: profile?.username, timestamp: serverTimestamp() },
+          lastMessage: { text, senderId: user.uid, senderName: profile?.username, timestamp: serverTimestamp(), readBy: [user.uid] },
         })
         setDraft('')
       }
@@ -163,9 +165,9 @@ export default function ChatPage() {
     : null
 
   return (
-    <div onClick={() => setPickerFor(null)} style={{ minHeight:'100vh', background:'#eae8f6', display:'flex', justifyContent:'center', fontFamily:"'Segoe UI',system-ui,sans-serif" }}>
+    <div onClick={() => setPickerFor(null)} style={{ height:'100dvh', background:'#eae8f6', display:'flex', justifyContent:'center', fontFamily:"'Segoe UI',system-ui,sans-serif", overflow:'hidden' }}>
       <style>{SHAKE_CSS}</style>
-      <div style={{ width:'100%', maxWidth:480, background:'#eae8f6', display:'flex', flexDirection:'column', minHeight:'100vh', boxShadow:'0 0 40px rgba(0,0,0,.1)', position:'relative' }}>
+      <div style={{ width:'100%', maxWidth:480, background:'#eae8f6', display:'flex', flexDirection:'column', height:'100%', boxShadow:'0 0 40px rgba(0,0,0,.1)', position:'relative', overflow:'hidden' }}>
 
         {/* Header */}
         <div style={{ background:'#4540c8', padding:'12px 16px', display:'flex', alignItems:'center', gap:12, flexShrink:0, boxShadow:'0 2px 8px rgba(0,0,0,.2)' }}>
@@ -176,6 +178,11 @@ export default function ChatPage() {
             <div style={{ color:'white', fontWeight:700, fontSize:'1rem' }}>{chatName()}</div>
             <div style={{ color:'rgba(255,255,255,.7)', fontSize:'0.72rem' }}>{chatSubtitle()}</div>
           </div>
+          {profile?.blockedCount > 0 && (
+            <div title="Messages you sent that were blocked" style={{ background:'rgba(239,68,68,.25)', color:'#fca5a5', borderRadius:999, padding:'2px 9px', fontSize:'0.72rem', fontWeight:700 }}>
+              ⚠️ {profile.blockedCount}
+            </div>
+          )}
           {!ready && (
             <div style={{ display:'flex', alignItems:'center', gap:6, color:'rgba(255,255,255,.6)', fontSize:'0.72rem' }}>
               <svg className="sc-spin" viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2.5}><circle cx={12} cy={12} r={9} strokeDasharray="40 20"/></svg>
@@ -256,9 +263,9 @@ export default function ChatPage() {
         </div>
 
         {/* Input */}
-        <div style={{ padding:'10px 12px 16px', background:'#f1effc', borderTop:'1px solid #d8d4f4', flexShrink:0 }}>
+        <div style={{ padding:'10px 12px 10px', paddingBottom:'max(10px, env(safe-area-inset-bottom))', background:'#f1effc', borderTop:'1px solid #d8d4f4', flexShrink:0 }}>
           <div ref={wrapRef} style={{ display:'flex', alignItems:'center', background:'white', borderRadius:999, padding:'6px 6px 6px 18px', boxShadow:'0 1px 4px rgba(0,0,0,.1)' }}>
-            <input style={{ flex:1, border:'none', outline:'none', fontSize:'0.95rem', background:'transparent', color: ready?'#111':'#9ca3af', padding:'6px 0', fontFamily:'inherit' }}
+            <input style={{ flex:1, border:'none', outline:'none', fontSize:'1rem', background:'transparent', color: ready?'#111':'#9ca3af', padding:'6px 0', fontFamily:'inherit' }}
               dir="auto"
               placeholder={ready ? 'Type a message…' : 'Loading safety model…'}
               value={draft}

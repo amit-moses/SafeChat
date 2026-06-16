@@ -1,2 +1,26 @@
 *, *::before, *::after { box-sizing: border-box; }
-body { margin: 0; }
+
+html {
+  height: 100%;
+  /* Prevent font-size adjustment on orientation change (iOS) */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  height: 100%;
+  /* Prevent pull-to-refresh and overscroll effects */
+  overscroll-behavior: none;
+  /* Remove blue tap highlight on mobile */
+  -webkit-tap-highlight-color: transparent;
+}
+
+#root {
+  height: 100%;
+}
+
+/* Prevent iOS auto-zoom on input focus (requires font-size >= 16px) */
+input, textarea, select {
+  font-size: max(16px, 1em);
+}

@@ -28,21 +28,27 @@ export default function NewChatModal({ onClose }) {
   async function openChat() {
     if (!found) return
     setBusy(true)
-    const chatId = [user.uid, found.id].sort().join('_')
-    const ref = doc(db, 'chats', chatId)
-    const snap = await getDoc(ref)
-    if (!snap.exists()) {
-      await setDoc(ref, {
-        type: 'direct', name: '',
-        members: [user.uid, found.id],
-        memberNames: { [user.uid]: profile?.username, [found.id]: found.username },
-        memberPhotos: { [user.uid]: profile?.photoURL||null, [found.id]: found.photoURL||null },
-        lastMessage: null,
-        createdAt: serverTimestamp(),
-      })
+    try {
+      const chatId = [user.uid, found.id].sort().join('_')
+      const ref = doc(db, 'chats', chatId)
+      const snap = await getDoc(ref)
+      if (!snap.exists()) {
+        await setDoc(ref, {
+          type: 'direct', name: '',
+          members: [user.uid, found.id],
+          memberNames: { [user.uid]: profile?.username, [found.id]: found.username },
+          memberPhotos: { [user.uid]: profile?.photoURL||null, [found.id]: found.photoURL||null },
+          lastMessage: null,
+          createdAt: serverTimestamp(),
+        })
+      }
+      navigate(`/chat/${chatId}`)
+      onClose()
+    } catch (e) {
+      setErr(e.message)
+    } finally {
+      setBusy(false)
     }
-    navigate(`/chat/${chatId}`)
-    onClose()
   }
 
   return (

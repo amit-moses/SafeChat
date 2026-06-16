@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, orderBy, doc, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import NewChatModal    from '../components/NewChatModal.jsx'
@@ -21,9 +21,10 @@ const avatar = (name, photo, size=40) => photo
 export default function ChatsPage() {
   const { user, profile, logout } = useAuth()
   const navigate = useNavigate()
-  const [chats,  setChats]  = useState([])
-  const [search, setSearch] = useState('')
-  const [modal,  setModal]  = useState(null) // 'new' | 'group' | null
+  const [chats,       setChats]       = useState([])
+  const [partnerNames, setPartnerNames] = useState({}) // { uid: { username, photoURL } }
+  const [search,      setSearch]      = useState('')
+  const [modal,       setModal]       = useState(null) // 'new' | 'group' | null
 
   useEffect(() => {
     if (!user) return
@@ -33,34 +34,46 @@ export default function ChatsPage() {
       orderBy('lastMessage.timestamp', 'desc')
     )
     return onSnapshot(q, snap => {
-      setChats(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      const loaded = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      setChats(loaded)
+      // fetch partner user docs for direct chats
+      const partnerIds = [...new Set(
+        loaded
+          .filter(c => c.type !== 'group')
+          .map(c => c.members.find(id => id !== user.uid))
+          .filter(Boolean)
+      )]
+      partnerIds.forEach(pid => {
+        getDoc(doc(db, 'users', pid)).then(s => {
+          if (s.exists()) setPartnerNames(prev => ({ ...prev, [pid]: s.data() }))
+        })
+      })
     }, () => {
-      // fallback without orderBy if index not ready
       const q2 = query(collection(db, 'chats'), where('members', 'array-contains', user.uid))
       onSnapshot(q2, s => setChats(s.docs.map(d => ({ id:d.id, ...d.data() }))))
     })
   }, [user])
 
   const filtered = chats.filter(c => {
-    const name = chatName(c, user.uid, c.memberNames)
+    const name = chatName(c, user.uid)
     return name.toLowerCase().includes(search.toLowerCase())
   })
 
-  function chatName(chat, myUid, memberNames = {}) {
+  function chatName(chat, myUid) {
     if (chat.type === 'group') return chat.name
     const otherId = chat.members.find(id => id !== myUid)
-    return memberNames[otherId] || 'Unknown'
+    return partnerNames[otherId]?.username || chat.memberNames?.[otherId] || 'Unknown'
   }
 
   function chatPhoto(chat, myUid) {
     if (chat.type === 'group') return null
     const otherId = chat.members.find(id => id !== myUid)
-    return chat.memberPhotos?.[otherId] || null
+    return partnerNames[otherId]?.photoURL || chat.memberPhotos?.[otherId] || null
   }
 
   return (
-    <div style={{ minHeight:'100vh', background:'#eae8f6', display:'flex', justifyContent:'center', fontFamily:"'Segoe UI',system-ui,sans-serif" }}>
-      <div style={{ width:'100%', maxWidth:480, background:'white', display:'flex', flexDirection:'column', minHeight:'100vh', boxShadow:'0 0 40px rgba(0,0,0,.1)' }}>
+    <div style={{ minHeight:'100dvh', background:'#eae8f6', display:'flex', justifyContent:'center', fontFamily:"'Segoe UI',system-ui,sans-serif" }}>
+      <div style={{ width:'100%', maxWidth:480, background:'white', display:'flex', flexDirection:'column', minHeight:'100dvh', boxShadow:'0 0 40px rgba(0,0,0,.1)' }}>
 
         {/* Header */}
         <div style={{ background:'#4540c8', padding:'16px', display:'flex', alignItems:'center', gap:12, flexShrink:0 }}>
@@ -91,15 +104,16 @@ export default function ChatsPage() {
             </div>
           )}
           {filtered.map(chat => {
-            const name  = chatName(chat, user.uid, chat.memberNames)
-            const photo = chatPhoto(chat, user.uid)
-            const last  = chat.lastMessage
-            const isGroup = chat.type === 'group'
+            const name     = chatName(chat, user.uid)
+            const photo    = chatPhoto(chat, user.uid)
+            const last     = chat.lastMessage
+            const isGroup  = chat.type === 'group'
+            const hasUnread = last && last.senderId !== user.uid && !last.readBy?.includes(user.uid)
             return (
               <div key={chat.id} onClick={() => navigate(`/chat/${chat.id}`)}
-                style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', cursor:'pointer', borderBottom:'1px solid #f3f4f6', transition:'background .15s' }}
+                style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', cursor:'pointer', borderBottom:'1px solid #f3f4f6', transition:'background .15s', background: hasUnread ? '#faf9ff' : 'white' }}
                 onMouseEnter={e => e.currentTarget.style.background='#f8f7fe'}
-                onMouseLeave={e => e.currentTarget.style.background='white'}>
+                onMouseLeave={e => e.currentTarget.style.background= hasUnread ? '#faf9ff' : 'white'}>
                 <div style={{ position:'relative', flexShrink:0 }}>
                   {avatar(name, photo, 48)}
                   {isGroup && (
@@ -110,10 +124,13 @@ export default function ChatsPage() {
                 </div>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:3 }}>
-                    <span style={{ fontWeight:600, fontSize:'0.95rem', color:'#111' }}>{name}</span>
-                    <span style={{ fontSize:'0.72rem', color:'#9ca3af', flexShrink:0, marginLeft:8 }}>{ts(last?.timestamp)}</span>
+                    <span style={{ fontWeight: hasUnread ? 700 : 600, fontSize:'0.95rem', color:'#111' }}>{name}</span>
+                    <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0, marginLeft:8 }}>
+                      <span style={{ fontSize:'0.72rem', color: hasUnread ? '#4540c8' : '#9ca3af' }}>{ts(last?.timestamp)}</span>
+                      {hasUnread && <div style={{ width:10, height:10, borderRadius:'50%', background:'#4540c8' }} />}
+                    </div>
                   </div>
-                  <div style={{ fontSize:'0.85rem', color:'#6b7280', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                  <div style={{ fontSize:'0.85rem', color: hasUnread ? '#374151' : '#6b7280', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontWeight: hasUnread ? 600 : 400 }}>
                     {last ? `${last.senderId === user.uid ? 'You: ' : ''}${last.text}` : 'No messages yet'}
                   </div>
                 </div>
