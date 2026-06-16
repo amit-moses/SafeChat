@@ -1,0 +1,14 @@
+{
+  "model_type": "distilbert",
+  "task": "text-classification",
+  "id2label": {
+    "0": "safe",
+    "1": "toxic"
+  },
+  "label2id": {
+    "safe": 0,
+    "toxic": 1
+  },
+  "max_length": 128,
+  "threshold": 0.5
+}
