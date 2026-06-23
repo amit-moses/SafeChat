@@ -4,9 +4,16 @@ import { buildVocab, tokenize, softmax } from './tokenizer.js'
 let session = null
 let vocab   = null
 
-const MODEL_URL = import.meta.env.PROD
-  ? 'https://media.githubusercontent.com/media/amit-moses/SafeChat/master/public/model/model.onnx'
-  : '/model/model.onnx'
+// Model source resolution:
+//  - VITE_MODEL_URL (if set) wins — point it at any host (e.g. Firebase Storage).
+//  - Otherwise in production load from the GitHub LFS CDN (the bundled file on
+//    Vercel is only a ~134-byte LFS pointer, so it can't be served locally).
+//  - In dev, load the real file straight from /public/model.
+const MODEL_URL =
+  import.meta.env.VITE_MODEL_URL ||
+  (import.meta.env.PROD
+    ? 'https://media.githubusercontent.com/media/amit-moses/SafeChat/master/public/model/model.onnx'
+    : '/model/model.onnx')
 
 export async function loadModel(onProgress) {
   if (session && vocab) return
